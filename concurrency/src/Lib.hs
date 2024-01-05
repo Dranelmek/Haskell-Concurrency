@@ -1,21 +1,26 @@
 module Lib
-    ( User
-    , Message
+    ( User(..)
+    , Message(..)
     ) where
 
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+data User = User 
+    { username :: String
+    , messagesSent :: Int
+    , messagesRecieved :: Int
+    }
 
-type Name = String
+instance Eq User where
+    a == b = username a == username b
 
-data User = User {
-    username :: Name,
-    messagesSent :: Int,
-    messagesRecieved :: Int
-}
+instance Show User where
+    show a = username a
+
 
 data Message = Message {
     content :: String,
     sender :: User,
     recipient :: User
-}
+} deriving Eq
+
+instance Show Message where
+    show a = (show $ sender a) ++ " sent " ++ (show $ recipient a) ++ " a message saying:\n" ++ content a
