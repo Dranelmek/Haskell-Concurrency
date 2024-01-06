@@ -46,6 +46,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - concurrency
+    - random
 
 tests:
   concurrency-test:
@@ -57,3 +58,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - concurrency
+    - random

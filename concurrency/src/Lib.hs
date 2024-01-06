@@ -19,6 +19,7 @@ instance Show User where
 data Message = Message {
     content :: String,
     sender :: User,
+    target :: String,
     recipient :: User
 } deriving Eq
 

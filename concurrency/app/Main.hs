@@ -3,12 +3,12 @@ module Main (main) where
 
 import Lib
 import Control.Concurrent
+import System.Random
 main :: IO ()
 main = do 
-    let p = User {username = "tester1", messagesSent = 1, messagesRecieved = 0}
-    let q = User {username = "tester2", messagesSent = 0, messagesRecieved = 1}
-    let test = Message "Hello world" p q
-    putStrLn $ show test
+    r <- randomRIO (0,9) :: IO Int
+    putStrLn $ (show r) ++ " " ++ (names!!r)
+
 
 {-| TODO: make a message list the shared variable so that a user-thread takes it and adds a message to it that way each user can check if the list is 100 long
     if it is the program can terminate. 
@@ -20,13 +20,14 @@ names = ["James","Robert","John","Michael","David","Mary","Patricia","Jennifer",
 
 -- | create user thread
 userProcess :: User -> MVar Message -> MVar [Message] -> IO ()
-userProcess = undefined
+userProcess user letterBox messageList = undefined
 
 -- | manipulate shared memory to send message
 sendMessage :: MVar Message -> MVar [Message] -> IO ()
 sendMessage = undefined
 
-repeatProcess :: Int -> IO ()
-repeatProcess a = if a < 0 then return () else do
-    putStrLn $ show a
-    repeatProcess (a - 1)
+repeatProcess :: [String] -> IO ()
+repeatProcess [] = return ()
+repeatProcess (x:xs) = do
+    putStrLn x
+    repeatProcess xs

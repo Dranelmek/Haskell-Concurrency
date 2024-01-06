@@ -49,6 +49,7 @@ executable concurrency-exe
   build-depends:
       base >=4.7 && <5
     , concurrency
+    , random
   default-language: Haskell2010
 
 test-suite concurrency-test
@@ -64,4 +65,5 @@ test-suite concurrency-test
   build-depends:
       base >=4.7 && <5
     , concurrency
+    , random
   default-language: Haskell2010
