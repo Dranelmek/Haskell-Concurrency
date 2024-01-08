@@ -78,9 +78,9 @@ sendMessage user letterBox = do
 
 generateUsers :: [String] -> MVar Message -> MVar [Message] -> IO ()
 generateUsers [] _ _ = return ()
-repeatProcess (x:xs) letterBox messageList= do
-    forkIO (userProcess (User x 0 0) letterBox messageList)
-    repeatProcess xs letterBox messageList
+generateUsers (x:xs) letterBox messageList= do
+    _ <- forkIO (userProcess (User x 0 0) letterBox messageList)
+    generateUsers xs letterBox messageList
 
 -- | chooses a random name from the given list that is not the name given as an argument
 chooseName :: String -> [String] -> IO String

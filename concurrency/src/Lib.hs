@@ -13,7 +13,7 @@ instance Eq User where
     a == b = username a == username b
 
 instance Show User where
-    show a = username a
+    show a = "User: " ++ username a ++ "\nMessages sent: " ++ (show $ messagesSent a) ++ "\nMessages recieved: " ++ (show $ messagesRecieved a)
 
 
 data Message = Message {
@@ -24,4 +24,4 @@ data Message = Message {
 } deriving Eq
 
 instance Show Message where
-    show a = (show $ sender a) ++ " sent " ++ (show $ recipient a) ++ " a message saying:\n" ++ content a
+    show a = (username $ sender a) ++ " sent " ++ (username $ recipient a) ++ " a message saying:\n" ++ content a
