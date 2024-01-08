@@ -14,10 +14,7 @@ main = do
     endProcess messageList
 
 
-{-| TODO: make a message list the shared variable so that a user-thread takes it and adds a message to it that way each user can check if the list is 100 long
-    if it is the program can terminate. 
-
-    add receiveMessage function
+{-| TODO: solve empty-letterbox-deadlock
     -}
 
 names = ["James","Robert","John","Michael","David","Mary","Patricia","Jennifer","Linda","Elizabeth"]
@@ -113,4 +110,6 @@ The system could deadlock in various situations:
 - if there is a message to a certain thread and that thread is trying to send a message.
 Solution:
 - make the threads only wait for a certain time before moving on with their life
+
+the prototype is done but the next step is figuring out how to beat the afromentioned deadlock.
 -}
