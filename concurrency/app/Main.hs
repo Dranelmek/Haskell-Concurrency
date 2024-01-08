@@ -15,6 +15,7 @@ main = do
 
 
 {-| TODO: solve empty-letterbox-deadlock
+    Possible solution: each userprocess creates 2 sub threads one for receiving and one for sending...
     -}
 
 names = ["James","Robert","John","Michael","David","Mary","Patricia","Jennifer","Linda","Elizabeth"]
