@@ -63,6 +63,8 @@ receiveMessage user letterBox messageList = do
             return False
 
 
+-- | wrapper function that handles ruterning thread ID and send/receive bool  and also kills the thread after the main thread has slept for a bit
+
 -- | manipulate shared memory to send message
 sendMessage :: User -> MVar Message -> IO Bool
 sendMessage user letterBox = do
