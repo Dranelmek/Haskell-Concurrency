@@ -27,17 +27,26 @@ userProcess :: User -> MVar Message -> MVar [Message] -> IO ()
 userProcess user letterBox messageList = do
     -- | initialise random variables
     delay <- randomRIO (0,100) :: IO Int
+    localThreadStorage <- newMVar (False,False)
 
     -- | check if the max number of messages has been sent
     allMessages <- readMVar messageList
     if length allMessages < 100 then do
         -- | check if the user received a message
-        messageRecieved <- receiveMessage user letterBox messageList
+        rTid <- forkIO (receiveMessage user letterBox messageList localThreadStorage)
         
         -- | send a message to a random user
-        messageSent <- sendMessage user letterBox
+        sTid <- forkIO (sendMessage user letterBox localThreadStorage)
         
+        -- | sleep the superthread while the subthreads work then kill both subthreads
+        threadDelay 100
+        killThread rTid
+        killThread sTid
+
         -- | update the user's fields
+        userActivity <- readMVar localThreadStorage
+        let messageRecieved = fst userActivity
+        let messageSent = snd userActivity
         let updatedUser = User (username user) (messagesSent user + boolToInt messageSent) (messagesRecieved user + boolToInt messageRecieved)
         
         -- | sleep for a random amount of time
@@ -48,34 +57,38 @@ userProcess user letterBox messageList = do
         else
             putStrLn $ show user
 
+-- | wrapper function that handles ruterning thread ID and send/receive bool and also kills the thread after the main thread has slept for a bit
+-- TODO: research how to kill a thread.
+
 -- | checks the shared memory if a message was sent to the user, then updates the list of all messages
-receiveMessage :: User -> MVar Message -> MVar [Message] -> IO Bool
-receiveMessage user letterBox messageList = do
+receiveMessage :: User -> MVar Message -> MVar [Message] -> MVar (Bool,Bool) -> IO ()
+receiveMessage user letterBox messageList localThreadStorage = do
     currentMessageRead <- readMVar letterBox
+    localStorage <- readMVar localThreadStorage
     if target currentMessageRead == username user then do
         currentMessage <- takeMVar letterBox
         updateList <- takeMVar messageList
         let signedMessage = Message (content currentMessage) (sender currentMessage) (target currentMessage) user
         putStrLn $ show signedMessage
         putMVar messageList $ updateList ++ [signedMessage]
-        return True
+        _ <- takeMVar localThreadStorage
+        putMVar localThreadStorage (True, snd localStorage)
         else
-            return False
+            return ()
 
-
--- | wrapper function that handles ruterning thread ID and send/receive bool and also kills the thread after the main thread has slept for a bit
--- TODO: research how to kill a thread.
 
 -- | manipulate shared memory to send message
-sendMessage :: User -> MVar Message -> IO Bool
-sendMessage user letterBox = do
+sendMessage :: User -> MVar Message -> MVar (Bool,Bool) -> IO ()
+sendMessage user letterBox localThreadStorage = do
     sendDecision <- randomIO :: IO Bool
+    localStorage <- readMVar localThreadStorage
     if sendDecision then do
         targetUser <- chooseName (username user) names
         putMVar letterBox $ Message ("Hello "++targetUser++"!") user targetUser dummyUser
-        return sendDecision
+        _ <- takeMVar localThreadStorage
+        putMVar localThreadStorage (fst localStorage, True)
         else
-            return sendDecision
+            return ()
 
 
 generateUsers :: [String] -> MVar Message -> MVar [Message] -> IO ()
