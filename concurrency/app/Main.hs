@@ -6,27 +6,36 @@ module Main (main) where
 import Lib
 import Control.Concurrent
 import System.Random
+import Data.List (elemIndex)
+
 main :: IO ()
 main = do 
     letterBox <- newEmptyMVar
     messageList <- newMVar []
-    generateUsers names letterBox messageList
+    userList <- newMVar []
+    generateUsers names userList letterBox messageList
     endProcess messageList
+    putStrLn "\n================================================\n"
+    finalList <- readMVar userList
+    printList finalList
+    -- ml <- readMVar messageList
+    -- putStrLn $ show $ length ml
 
 
-{-| TODO: solve empty-letterbox-deadlock
-    Possible solution: each userprocess creates 2 sub threads one for receiving and one for sending...
-    the super thread for each user can then kill the subthreads after sleeping for a bit.
+
+{-| TODO: solve self overtaking problem
+    Possible solution: find optimal sleep times
+    Add random messages
     -}
 
 names = ["James","Robert","John","Michael","David","Mary","Patricia","Jennifer","Linda","Elizabeth"]
 dummyUser = User "" 0 0
 
 -- | create user thread
-userProcess :: User -> MVar Message -> MVar [Message] -> IO ()
-userProcess user letterBox messageList = do
+userProcess :: User -> MVar [User] -> MVar Message -> MVar [Message] -> IO ()
+userProcess user userList letterBox messageList = do
     -- | initialise random variables
-    delay <- randomRIO (0,100) :: IO Int
+    delay <- randomRIO (0,1000) :: IO Int
     localThreadStorage <- newMVar (False,False)
 
     -- | check if the max number of messages has been sent
@@ -39,7 +48,7 @@ userProcess user letterBox messageList = do
         sTid <- forkIO (sendMessage user letterBox localThreadStorage)
         
         -- | sleep the superthread while the subthreads work then kill both subthreads
-        threadDelay 100
+        threadDelay 50000
         killThread rTid
         killThread sTid
 
@@ -49,16 +58,16 @@ userProcess user letterBox messageList = do
         let messageSent = snd userActivity
         let updatedUser = User (username user) (messagesSent user + boolToInt messageSent) (messagesRecieved user + boolToInt messageRecieved)
         
+        -- | update the userlist
+        updateUserList updatedUser userList
+
         -- | sleep for a random amount of time
         threadDelay delay
         
         -- | restart the thread
-        userProcess updatedUser letterBox messageList
-        else
-            putStrLn $ show user
-
--- | wrapper function that handles ruterning thread ID and send/receive bool and also kills the thread after the main thread has slept for a bit
--- TODO: research how to kill a thread.
+        userProcess updatedUser userList letterBox messageList
+        else do
+            return ()
 
 -- | checks the shared memory if a message was sent to the user, then updates the list of all messages
 receiveMessage :: User -> MVar Message -> MVar [Message] -> MVar (Bool,Bool) -> IO ()
@@ -91,33 +100,62 @@ sendMessage user letterBox localThreadStorage = do
             return ()
 
 
-generateUsers :: [String] -> MVar Message -> MVar [Message] -> IO ()
-generateUsers [] _ _ = return ()
-generateUsers (x:xs) letterBox messageList= do
-    _ <- forkIO (userProcess (User x 0 0) letterBox messageList)
-    generateUsers xs letterBox messageList
+generateUsers :: [String] -> MVar [User] -> MVar Message -> MVar [Message] -> IO ()
+generateUsers [] _ _ _ = return ()
+generateUsers (x:xs) userList letterBox messageList= do
+    list <- takeMVar userList
+    putMVar userList (list++[User x 0 0])
+    _ <- forkIO (userProcess (User x 0 0) userList letterBox messageList)
+    generateUsers xs userList letterBox messageList
 
 -- | chooses a random name from the given list that is not the name given as an argument
 chooseName :: String -> [String] -> IO String
 chooseName _ [] =  return ""
 chooseName name list = do 
     r <- randomRIO (0,9) :: IO Int
-    let out = (list!!r)
+    let out = list!!r
     if out /= name then
         return out
         else
             chooseName name list
 
+-- | find a user in a list of users and replace it with the new one
+replaceUser :: User -> [User] -> [User]
+replaceUser user userList = 
+    x ++ user : ys where
+        (x,_:ys) = splitAt ind userList where
+            ind = getMaybeInt $ elemIndex user userList
+
+-- | get int or -1 out of Maybe Int
+getMaybeInt :: Maybe Int -> Int
+getMaybeInt Nothing = -1
+getMaybeInt (Just a) = a
+
+-- | update the userlist
+updateUserList :: User -> MVar [User] -> IO ()
+updateUserList user userList = do
+    list <- takeMVar userList
+    putMVar userList $ replaceUser user list
+
+
 boolToInt :: Bool -> Int
 boolToInt a | a = 1 | otherwise = 0
 
+printList :: Show a => [a] -> IO () 
+printList [] = do return ()
+printList (x:xs) = do
+    putStrLn $ show x
+    printList xs
+
+-- | end the main function when 
 endProcess :: MVar [Message] -> IO ()
 endProcess messageList = do
     allMessages <- readMVar messageList
     if length allMessages < 100 then do
-        threadDelay 10
+        threadDelay 100
         endProcess messageList
-        else
+        else do
+            threadDelay 10000
             return ()
 
 {-
@@ -128,6 +166,19 @@ The system could deadlock in various situations:
 - if there is a message to a certain thread and that thread is trying to send a message.
 Solution:
 - make the threads only wait for a certain time before moving on with their life
+Delay and cutoff issue: 
+- after 100 messages have been sent the main thread seems to end the entire process 
+- this leads to not all user threads displaying their final information
+Solution:
+- make the end process function wait longer
+- centralise the action of printing information into the main function rather than having each thread print their information individually
+self skipping issue:
+- The system doesn't display all messages sent/received after the simulation
+- I assume there are timing issues somewhere as the execution is sometimes stopped by indefinite MVar wait
+Solution:
+- good old fashion debugging
 
 the prototype is done but the next step is figuring out how to beat the afromentioned deadlock.
+the deadlock can be solved by spawning 2 subthreads for each user thread
+
 -}
