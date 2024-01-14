@@ -38,6 +38,8 @@ userProcess user userList letterBox messageList = do
     delay <- randomRIO (0,1000) :: IO Int
     localThreadStorage <- newMVar (False,False)
 
+    threadDelay 100
+
     -- | check if the max number of messages has been sent
     allMessages <- readMVar messageList
     if length allMessages < 100 then do
