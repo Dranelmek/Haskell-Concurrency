@@ -26,6 +26,8 @@ main = do
 {-| TODO: solve self overtaking problem
     Possible solution: find optimal sleep times
     Add random messages
+    I will probably have a long list of strings in lib.hs that will contain a bunch of predefined messages
+    another way would be to api fetch for an open source chat bot
     -}
 
 names = ["James","Robert","John","Michael","David","Mary","Patricia","Jennifer","Linda","Elizabeth"]
@@ -78,6 +80,7 @@ receiveMessage user letterBox messageList localThreadStorage = do
     localStorage <- readMVar localThreadStorage
     if target currentMessageRead == username user then do
         currentMessage <- takeMVar letterBox
+        -- POSSIBLE DEADLOCK
         updateList <- takeMVar messageList
         let signedMessage = Message (content currentMessage) (sender currentMessage) (target currentMessage) user
         putStrLn $ show signedMessage
