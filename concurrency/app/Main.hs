@@ -7,6 +7,7 @@ import Lib
 import Control.Concurrent
 import System.Random
 import Data.List (elemIndex)
+import Lib (casualMessages)
 
 main :: IO ()
 main = do 
@@ -18,8 +19,6 @@ main = do
     putStrLn "\n================================================\n"
     finalList <- readMVar userList
     printList finalList
-    -- ml <- readMVar messageList
-    -- putStrLn $ show $ length ml
 
 
 
@@ -97,8 +96,9 @@ sendMessage user letterBox localThreadStorage = do
     sendDecision <- randomIO :: IO Bool
     localStorage <- readMVar localThreadStorage
     if sendDecision then do
-        targetUser <- chooseName (username user) names
-        putMVar letterBox $ Message ("Hello "++targetUser++"!") user targetUser dummyUser
+        targetUser <- randomStringFromList (username user) names
+        message <- randomStringFromList "" Lib.casualMessages
+        putMVar letterBox $ Message message user targetUser dummyUser
         _ <- takeMVar localThreadStorage
         putMVar localThreadStorage (fst localStorage, True)
         else
@@ -114,15 +114,16 @@ generateUsers (x:xs) userList letterBox messageList= do
     generateUsers xs userList letterBox messageList
 
 -- | chooses a random name from the given list that is not the name given as an argument
-chooseName :: String -> [String] -> IO String
-chooseName _ [] =  return ""
-chooseName name list = do 
-    r <- randomRIO (0,9) :: IO Int
+randomStringFromList :: String -> [String] -> IO String
+randomStringFromList _ [] =  return ""
+randomStringFromList name list = do 
+    let bound = length list - 1
+    r <- randomRIO (0, bound) :: IO Int
     let out = list!!r
     if out /= name then
         return out
         else
-            chooseName name list
+            randomStringFromList name list
 
 -- | find a user in a list of users and replace it with the new one
 replaceUser :: User -> [User] -> [User]
@@ -151,6 +152,7 @@ printList [] = do return ()
 printList (x:xs) = do
     putStrLn $ show x
     printList xs
+
 
 -- | end the main function when 
 endProcess :: MVar [Message] -> IO ()
