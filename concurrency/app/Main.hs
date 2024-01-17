@@ -32,7 +32,7 @@ main = do
 
 names = ["James","Robert","John","Michael","David","Mary","Patricia","Jennifer","Linda","Elizabeth"]
 dummyUser = User "" 0 0
-
+-- test
 -- | create user thread
 userProcess :: User -> MVar [User] -> MVar Message -> MVar [Message] -> IO ()
 userProcess user userList letterBox messageList = do
