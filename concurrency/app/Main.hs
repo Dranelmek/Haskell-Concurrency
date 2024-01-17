@@ -7,7 +7,6 @@ import Lib
 import Control.Concurrent
 import System.Random
 import Data.List (elemIndex)
-import Lib (casualMessages)
 
 main :: IO ()
 main = do 
@@ -19,6 +18,8 @@ main = do
     putStrLn "\n================================================\n"
     finalList <- readMVar userList
     printList finalList
+    sendcount <- addMessages finalList
+    putStrLn $ show sendcount
 
 
 
@@ -51,16 +52,18 @@ userProcess user userList letterBox messageList = do
         sTid <- forkIO (sendMessage user letterBox localThreadStorage)
         
         -- | sleep the superthread while the subthreads work then kill both subthreads
-        threadDelay 50000
-        killThread rTid
-        killThread sTid
-
+        threadDelay 30000
+        
         -- | update the user's fields
         userActivity <- readMVar localThreadStorage
         let messageRecieved = fst userActivity
         let messageSent = snd userActivity
         let updatedUser = User (username user) (messagesSent user + boolToInt messageSent) (messagesRecieved user + boolToInt messageRecieved)
         
+
+        killThread rTid
+        killThread sTid
+
         -- | update the userlist
         updateUserList updatedUser userList
 
@@ -97,7 +100,7 @@ sendMessage user letterBox localThreadStorage = do
     localStorage <- readMVar localThreadStorage
     if sendDecision then do
         targetUser <- randomStringFromList (username user) names
-        message <- randomStringFromList "" Lib.casualMessages
+        message <- randomStringFromList "" casualMessages
         putMVar letterBox $ Message message user targetUser dummyUser
         _ <- takeMVar localThreadStorage
         putMVar localThreadStorage (fst localStorage, True)
@@ -164,6 +167,14 @@ endProcess messageList = do
         else do
             threadDelay 10000
             return ()
+
+addMessages :: [User] -> IO Int
+addMessages (x:[]) = do
+    return (messagesSent x)
+addMessages (x:xs) = do
+    prev <- addMessages xs
+    return (prev + messagesSent x)
+
 
 {-
 Things I found:
