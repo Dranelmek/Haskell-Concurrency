@@ -16,10 +16,14 @@ main = do
     generateUsers names userList letterBox messageList
     endProcess messageList
     putStrLn "\n================================================\n"
-    finalList <- readMVar userList
-    printList finalList
-    sendcount <- addMessages finalList
-    putStrLn $ show sendcount
+    -- finalList <- readMVar userList
+    -- printList finalList
+    list <- readMVar messageList
+    uList <- readMVar userList
+    let newUlist = countAllUserMessages uList list
+    printList newUlist
+    end <- addMessages newUlist
+    print end
 
 
 
@@ -32,7 +36,7 @@ main = do
 
 names = ["James","Robert","John","Michael","David","Mary","Patricia","Jennifer","Linda","Elizabeth"]
 dummyUser = User "" 0 0
--- test
+
 -- | create user thread
 userProcess :: User -> MVar [User] -> MVar Message -> MVar [Message] -> IO ()
 userProcess user userList letterBox messageList = do
@@ -82,7 +86,6 @@ receiveMessage user letterBox messageList localThreadStorage = do
     localStorage <- readMVar localThreadStorage
     if target currentMessageRead == username user then do
         currentMessage <- takeMVar letterBox
-        -- POSSIBLE DEADLOCK
         updateList <- takeMVar messageList
         let signedMessage = Message (content currentMessage) (sender currentMessage) (target currentMessage) user
         putStrLn $ show signedMessage
@@ -157,7 +160,7 @@ printList (x:xs) = do
     printList xs
 
 
--- | end the main function when 
+-- | end the main function when the messagelist reaches length 100
 endProcess :: MVar [Message] -> IO ()
 endProcess messageList = do
     allMessages <- readMVar messageList
@@ -168,6 +171,7 @@ endProcess messageList = do
             threadDelay 10000
             return ()
 
+-- | test function to check if all sent messages add up to 100
 addMessages :: [User] -> IO Int
 addMessages (x:[]) = do
     return (messagesSent x)
@@ -175,6 +179,18 @@ addMessages (x:xs) = do
     prev <- addMessages xs
     return (prev + messagesSent x)
 
+-- | sub function to count all messages sent by a user
+countUserMessages :: User -> [Message] -> (Int,Int)
+countUserMessages _ [] = (0,0)
+countUserMessages user (x:xs) = (received + fst (countUserMessages user xs), sent + snd (countUserMessages user xs)) where
+    received = if recipient x == user then 1 else 0
+    sent = if sender x == user then 1 else 0
+
+-- | centralised function to count all messages sent and received by all users to avoid the threaddelay-miscount error
+countAllUserMessages :: [User] -> [Message] -> [User]
+countAllUserMessages [] _ = []
+countAllUserMessages (x:xs) messageList = User (username x) sent received : countAllUserMessages xs messageList where
+    (received,sent) = countUserMessages x messageList
 
 {-
 Things I found:
@@ -195,6 +211,9 @@ self skipping issue:
 - I assume there are timing issues somewhere as the execution is sometimes stopped by indefinite MVar wait
 Solution:
 - good old fashion debugging
+- another more experimental approach would be to perform the counting of messages per user centrally in the main function
+  rather than in the process for each user. the time complexity for this would be an additional n^2 however it would
+  eliminate the inconsistency and the specification does not mention efficiency.
 
 the prototype is done but the next step is figuring out how to beat the afromentioned deadlock.
 the deadlock can be solved by spawning 2 subthreads for each user thread
