@@ -6,7 +6,6 @@ module Main (main) where
 import Lib
 import Control.Concurrent
 import System.Random
-import Data.List (elemIndex)
 
 main :: IO ()
 main = do 
@@ -16,14 +15,15 @@ main = do
     generateUsers names userList letterBox messageList
     endProcess messageList
     putStrLn "\n================================================\n"
-    -- finalList <- readMVar userList
-    -- printList finalList
     list <- readMVar messageList
     uList <- readMVar userList
-    let newUlist = countAllUserMessages uList list
-    printList newUlist
-    end <- addMessages newUlist
-    print end
+    let finalUserList = countAllUserMessages uList list
+    printList finalUserList
+    totalSent <- addMessages True finalUserList
+    totalReceived <- addMessages False finalUserList
+    putStrLn "\n================================================\n"
+    let out = "Total messages sent: "++show totalSent++"\nTotal messeages received: "++show totalReceived
+    putStrLn out
 
 
 
@@ -34,15 +34,18 @@ main = do
     another way would be to api fetch for an open source chat bot
     -}
 
-names = ["James","Robert","John","Michael","David","Mary","Patricia","Jennifer","Linda","Elizabeth"]
+names :: [String]
+names = ["Kem","Davide","Francesco","Hamza","Cody","Melike","Sarah","Daisy","Linda","Elizabeth"]
+
+-- | placeholder variable for the creation of an empty user
+dummyUser :: User
 dummyUser = User "" 0 0
 
 -- | create user thread
-userProcess :: User -> MVar [User] -> MVar Message -> MVar [Message] -> IO ()
-userProcess user userList letterBox messageList = do
+userProcess :: User -> MVar Message -> MVar [Message] -> IO ()
+userProcess user letterBox messageList = do
     -- | initialise random variables
     delay <- randomRIO (0,1000) :: IO Int
-    localThreadStorage <- newMVar (False,False)
 
     threadDelay 100
 
@@ -50,63 +53,46 @@ userProcess user userList letterBox messageList = do
     allMessages <- readMVar messageList
     if length allMessages < 100 then do
         -- | check if the user received a message
-        rTid <- forkIO (receiveMessage user letterBox messageList localThreadStorage)
+        rTid <- forkIO (receiveMessage user letterBox messageList)
         
         -- | send a message to a random user
-        sTid <- forkIO (sendMessage user letterBox localThreadStorage)
-        
+        sTid <- forkIO (sendMessage user letterBox)
         -- | sleep the superthread while the subthreads work then kill both subthreads
         threadDelay 30000
-        
-        -- | update the user's fields
-        userActivity <- readMVar localThreadStorage
-        let messageRecieved = fst userActivity
-        let messageSent = snd userActivity
-        let updatedUser = User (username user) (messagesSent user + boolToInt messageSent) (messagesRecieved user + boolToInt messageRecieved)
-        
 
         killThread rTid
         killThread sTid
-
-        -- | update the userlist
-        updateUserList updatedUser userList
 
         -- | sleep for a random amount of time
         threadDelay delay
         
         -- | restart the thread
-        userProcess updatedUser userList letterBox messageList
+        userProcess user letterBox messageList
         else do
             return ()
 
 -- | checks the shared memory if a message was sent to the user, then updates the list of all messages
-receiveMessage :: User -> MVar Message -> MVar [Message] -> MVar (Bool,Bool) -> IO ()
-receiveMessage user letterBox messageList localThreadStorage = do
+receiveMessage :: User -> MVar Message -> MVar [Message] -> IO ()
+receiveMessage user letterBox messageList = do
     currentMessageRead <- readMVar letterBox
-    localStorage <- readMVar localThreadStorage
     if target currentMessageRead == username user then do
         currentMessage <- takeMVar letterBox
         updateList <- takeMVar messageList
         let signedMessage = Message (content currentMessage) (sender currentMessage) (target currentMessage) user
         putStrLn $ show signedMessage
         putMVar messageList $ updateList ++ [signedMessage]
-        _ <- takeMVar localThreadStorage
-        putMVar localThreadStorage (True, snd localStorage)
         else
             return ()
 
 
 -- | manipulate shared memory to send message
-sendMessage :: User -> MVar Message -> MVar (Bool,Bool) -> IO ()
-sendMessage user letterBox localThreadStorage = do
+sendMessage :: User -> MVar Message -> IO ()
+sendMessage user letterBox = do
     sendDecision <- randomIO :: IO Bool
-    localStorage <- readMVar localThreadStorage
     if sendDecision then do
         targetUser <- randomStringFromList (username user) names
         message <- randomStringFromList "" casualMessages
         putMVar letterBox $ Message message user targetUser dummyUser
-        _ <- takeMVar localThreadStorage
-        putMVar localThreadStorage (fst localStorage, True)
         else
             return ()
 
@@ -116,7 +102,7 @@ generateUsers [] _ _ _ = return ()
 generateUsers (x:xs) userList letterBox messageList= do
     list <- takeMVar userList
     putMVar userList (list++[User x 0 0])
-    _ <- forkIO (userProcess (User x 0 0) userList letterBox messageList)
+    _ <- forkIO (userProcess (User x 0 0) letterBox messageList)
     generateUsers xs userList letterBox messageList
 
 -- | chooses a random name from the given list that is not the name given as an argument
@@ -130,28 +116,6 @@ randomStringFromList name list = do
         return out
         else
             randomStringFromList name list
-
--- | find a user in a list of users and replace it with the new one
-replaceUser :: User -> [User] -> [User]
-replaceUser user userList = 
-    x ++ user : ys where
-        (x,_:ys) = splitAt ind userList where
-            ind = getMaybeInt $ elemIndex user userList
-
--- | get int or -1 out of Maybe Int
-getMaybeInt :: Maybe Int -> Int
-getMaybeInt Nothing = -1
-getMaybeInt (Just a) = a
-
--- | update the userlist
-updateUserList :: User -> MVar [User] -> IO ()
-updateUserList user userList = do
-    list <- takeMVar userList
-    putMVar userList $ replaceUser user list
-
-
-boolToInt :: Bool -> Int
-boolToInt a | a = 1 | otherwise = 0
 
 printList :: Show a => [a] -> IO () 
 printList [] = do return ()
@@ -168,16 +132,20 @@ endProcess messageList = do
         threadDelay 100
         endProcess messageList
         else do
-            threadDelay 10000
+            threadDelay 100
             return ()
 
 -- | test function to check if all sent messages add up to 100
-addMessages :: [User] -> IO Int
-addMessages (x:[]) = do
-    return (messagesSent x)
-addMessages (x:xs) = do
-    prev <- addMessages xs
-    return (prev + messagesSent x)
+-- | It returns total messages sent when given True and total messages received when given False
+addMessages :: Bool -> [User] -> IO Int
+addMessages _ [] = return (0)
+addMessages bool (x:[]) = do
+    return (func x) where func = if bool then messagesSent else messagesRecieved
+addMessages bool (x:xs) = do
+    prev <- addMessages bool xs
+    return (prev + func x) where func = if bool then messagesSent else messagesRecieved
+
+
 
 -- | sub function to count all messages sent by a user
 countUserMessages :: User -> [Message] -> (Int,Int)
